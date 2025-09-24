@@ -56,8 +56,9 @@ func lookup(store *configstore.Store, parent any) error {
 		}
 
 		if typeOfField.Kind() == reflect.Struct {
-			// TODO handle error
-			lookup(store, valueOfParent.Field(i).Addr().Interface())
+			if err := lookup(store, valueOfParent.Field(i).Addr().Interface()); err != nil {
+				return err
+			}
 			continue
 		}
 
