@@ -31,10 +31,7 @@ func GetFromStore[T any](store *configstore.Store, key string) (T, error) {
 
 func lookup(store *configstore.Store, parent any) error {
 	typeOfParent := reflect.TypeOf(parent)
-	if typeOfParent.Kind() == reflect.Pointer {
-		typeOfParent = typeOfParent.Elem()
-	}
-	if typeOfParent.Kind() == reflect.Pointer {
+	for typeOfParent.Kind() == reflect.Pointer {
 		typeOfParent = typeOfParent.Elem()
 	}
 	if typeOfParent.Kind() != reflect.Struct {
@@ -42,10 +39,7 @@ func lookup(store *configstore.Store, parent any) error {
 	}
 
 	valueOfParent := reflect.ValueOf(parent)
-	if valueOfParent.Kind() == reflect.Pointer {
-		valueOfParent = valueOfParent.Elem()
-	}
-	if valueOfParent.Kind() == reflect.Pointer {
+	for valueOfParent.Kind() == reflect.Pointer {
 		valueOfParent = valueOfParent.Elem()
 	}
 
