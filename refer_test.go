@@ -32,6 +32,34 @@ func TestSimple(t *testing.T) {
 	assert.Equal(t, config.Token, "some-token")
 }
 
+func TestTypes(t *testing.T) {
+	store := configstore.NewStore()
+	store.InMemory(t.Name()).Add(
+		configstore.NewItem("config", `{}`, 1),
+		configstore.NewItem("intPos", `5`, 1),
+		configstore.NewItem("intNeg", `-5`, 1),
+		configstore.NewItem("boolTrue", `true`, 1),
+		configstore.NewItem("stringSlice", `["foo", "bar"]`, 1),
+	)
+
+	type Config struct {
+		IntPos      int      `json:"-" configstore:"intPos"`
+		IntNeg      int      `json:"-" configstore:"intNeg"`
+		Uint        uint     `json:"-" configstore:"intPos"`
+		BoolTrue    bool     `json:"-" configstore:"boolTrue"`
+		StringSlice []string `json:"-" configstore:"stringSlice"`
+	}
+
+	config, err := refer.GetFromStore[Config](store, "config")
+	assert.NilError(t, err)
+
+	assert.Equal(t, config.IntPos, 5)
+	assert.Equal(t, config.IntNeg, -5)
+	assert.Equal(t, config.Uint, uint(5))
+	assert.Equal(t, config.BoolTrue, true)
+	assert.DeepEqual(t, config.StringSlice, []string{"foo", "bar"})
+}
+
 func TestNotStruct(t *testing.T) {
 	store := configstore.NewStore()
 	store.InMemory(t.Name()).Add(

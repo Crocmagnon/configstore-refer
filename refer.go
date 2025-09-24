@@ -71,12 +71,20 @@ func lookup(store *configstore.Store, parent any) error {
 			continue
 		}
 
-		item, err := store.GetItemValue(tag)
+		item, err := configstore.Filter().
+			Store(store).
+			Slice(tag).
+			Unmarshal(func() interface{} { return reflect.New(typeOfField).Interface() }).
+			Squash().
+			MustGetFirstItem().
+			Unmarshaled()
 		if err != nil {
 			return fmt.Errorf("getting referenced item from configstore: %w", err)
 		}
 
-		f.Set(reflect.ValueOf(item))
+		val := reflect.ValueOf(item).Elem().Interface()
+
+		f.Set(reflect.ValueOf(val))
 	}
 	return nil
 }
