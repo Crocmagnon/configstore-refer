@@ -51,13 +51,18 @@ func lookup(store *configstore.Store, parent any) error {
 		}
 
 		typeOfField := typeField.Type
-		if typeOfField.Kind() == reflect.Pointer {
+		for typeOfField.Kind() == reflect.Pointer {
 			typeOfField = typeOfField.Elem()
 		}
 
 		if typeOfField.Kind() == reflect.Struct {
 			// TODO handle error
 			lookup(store, valueOfParent.Field(i).Addr().Interface())
+			continue
+		}
+
+		f := valueOfParent.Field(i)
+		if !f.CanSet() {
 			continue
 		}
 
@@ -71,10 +76,7 @@ func lookup(store *configstore.Store, parent any) error {
 			return fmt.Errorf("getting referenced item from configstore: %w", err)
 		}
 
-		f := valueOfParent.Field(i)
-		if f.CanSet() {
-			f.Set(reflect.ValueOf(item))
-		}
+		f.Set(reflect.ValueOf(item))
 	}
 	return nil
 }
