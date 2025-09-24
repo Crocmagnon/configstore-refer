@@ -104,3 +104,30 @@ func TestNested(t *testing.T) {
 	assert.Equal(t, config.Container.API.URL, "https://api.example.com")
 	assert.Equal(t, config.Container.API.Token, "some-token")
 }
+
+func TestStructRefer(t *testing.T) {
+	store := configstore.NewStore()
+	store.InMemory(t.Name()).Add(
+		configstore.NewItem("config", `{
+}`, 1),
+		configstore.NewItem("api-config", `{
+	"url": "https://api.example.com",
+	"token": "some-token"
+}`, 1),
+	)
+
+	type API struct {
+		URL   string `json:"url"`
+		Token string `json:"token"`
+	}
+
+	type Config struct {
+		API API `json:"-" configstore:"api-config"`
+	}
+
+	config, err := refer.GetFromStore[Config](store, "config")
+	assert.NilError(t, err)
+
+	assert.Equal(t, config.API.URL, "https://api.example.com")
+	assert.Equal(t, config.API.Token, "some-token")
+}

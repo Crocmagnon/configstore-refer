@@ -55,20 +55,21 @@ func lookup(store *configstore.Store, parent any) error {
 			typeOfField = typeOfField.Elem()
 		}
 
-		if typeOfField.Kind() == reflect.Struct {
+		tag := typeField.Tag.Get("configstore")
+
+		if typeOfField.Kind() == reflect.Struct && tag == "" {
 			if err := lookup(store, valueOfParent.Field(i).Addr().Interface()); err != nil {
 				return err
 			}
 			continue
 		}
 
-		f := valueOfParent.Field(i)
-		if !f.CanSet() {
+		if tag == "" {
 			continue
 		}
 
-		tag, ok := typeField.Tag.Lookup("configstore")
-		if !ok || tag == "" {
+		f := valueOfParent.Field(i)
+		if !f.CanSet() {
 			continue
 		}
 
