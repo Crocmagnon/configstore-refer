@@ -131,3 +131,36 @@ func TestStructRefer(t *testing.T) {
 	assert.Equal(t, config.API.URL, "https://api.example.com")
 	assert.Equal(t, config.API.Token, "some-token")
 }
+
+func TestReferKeys(t *testing.T) {
+	store := configstore.NewStore()
+	store.InMemory(t.Name()).Add(
+		configstore.NewItem("config", `{
+}`, 1),
+		configstore.NewItem("api-config", `{
+	"api": {
+		"url": "https://api.example.com",
+		"concurrency": 2,
+		"creds": {
+			"token": "some-token",
+			"user": "user"
+		}
+	}
+}`, 1),
+	)
+
+	type Config struct {
+		URL         string `json:"-" configstore:"api-config,.api.url"`
+		Token       string `json:"-" configstore:"api-config,.api.creds.token"`
+		User        string `json:"-" configstore:"api-config,.api.creds.user"`
+		Concurrency int    `json:"-" configstore:"api-config,.api.concurrency | tostring | tonumber"`
+	}
+
+	config, err := refer.GetFromStore[Config](store, "config")
+	assert.NilError(t, err)
+
+	assert.Equal(t, config.URL, "https://api.example.com")
+	assert.Equal(t, config.Token, "some-token")
+	assert.Equal(t, config.User, "user")
+	assert.Equal(t, config.Concurrency, 2)
+}

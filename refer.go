@@ -1,9 +1,12 @@
 package refer
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
+	"github.com/itchyny/gojq"
 	"github.com/ovh/configstore"
 )
 
@@ -68,25 +71,77 @@ func lookup(store *configstore.Store, parent any) error {
 			continue
 		}
 
+		tagParts := strings.Split(tag, ",")
+		if len(tagParts) == 0 {
+			continue
+		}
+		if len(tagParts) > 2 {
+			return fmt.Errorf("configstore tag contains more than two parts: %s", tag)
+		}
+
+		sliceKey := tagParts[0]
+		query := ""
+		if len(tagParts) == 2 {
+			query = tagParts[1]
+		}
+
 		f := valueOfParent.Field(i)
 		if !f.CanSet() {
 			continue
 		}
 
-		item, err := configstore.Filter().
-			Store(store).
-			Slice(tag).
-			Unmarshal(func() interface{} { return reflect.New(typeOfField).Interface() }).
-			Squash().
-			MustGetFirstItem().
-			Unmarshaled()
-		if err != nil {
-			return fmt.Errorf("getting referenced item from configstore: %w", err)
+		if query == "" {
+			item, err := configstore.Filter().
+				Store(store).
+				Slice(sliceKey).
+				Unmarshal(func() interface{} { return reflect.New(typeOfField).Interface() }).
+				Squash().
+				MustGetFirstItem().
+				Unmarshaled()
+			if err != nil {
+				return fmt.Errorf("getting referenced item from configstore: %w", err)
+			}
+
+			val := reflect.ValueOf(item).Elem().Interface()
+
+			f.Set(reflect.ValueOf(val))
+		} else {
+			item, err := configstore.Filter().
+				Store(store).
+				Slice(sliceKey).
+				Unmarshal(func() interface{} { return &map[string]any{} }).
+				Squash().
+				MustGetFirstItem().
+				Unmarshaled()
+			if err != nil {
+				return fmt.Errorf("getting referenced item from configstore: %w", err)
+			}
+
+			typedItem := item.(*map[string]any)
+
+			qry, err := gojq.Parse(query)
+			if err != nil {
+				return fmt.Errorf("parsing query %q: %w", query, err)
+			}
+
+			iter := qry.Run(*typedItem) // or query.RunWithContext
+			for {
+				v, hasNext := iter.Next()
+				if !hasNext {
+					break
+				}
+
+				if err, ok := v.(error); ok {
+					var haltErr *gojq.HaltError
+					if errors.As(err, &haltErr) && haltErr.Value() == nil {
+						break
+					}
+					return fmt.Errorf("iterating over query results: %w", err)
+				}
+
+				f.Set(reflect.ValueOf(v))
+			}
 		}
-
-		val := reflect.ValueOf(item).Elem().Interface()
-
-		f.Set(reflect.ValueOf(val))
 	}
 	return nil
 }
