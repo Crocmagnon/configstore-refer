@@ -11,25 +11,17 @@ import (
 )
 
 func GetFromStore[T any](store *configstore.Store, key string) (T, error) {
-	item, err := configstore.Filter().
-		Store(store).
-		Slice(key).
-		Unmarshal(func() interface{} { return new(T) }).
-		Squash().
-		MustGetFirstItem().
-		Unmarshaled()
+	item, err := get[T](store, key)
 	if err != nil {
 		return *new(T), fmt.Errorf("getting item from configstore: %w", err)
 	}
 
-	typedItem := item.(*T)
-
-	err = lookup(store, typedItem)
+	err = lookup(store, &item)
 	if err != nil {
-		return *typedItem, fmt.Errorf("looking up referenced items: %w", err)
+		return item, fmt.Errorf("looking up referenced items: %w", err)
 	}
 
-	return *typedItem, nil
+	return item, nil
 }
 
 func lookup(store *configstore.Store, parent any) error {
@@ -102,29 +94,21 @@ func lookup(store *configstore.Store, parent any) error {
 				return fmt.Errorf("getting referenced item from configstore: %w", err)
 			}
 
-			val := reflect.ValueOf(item).Elem().Interface()
+			val := reflect.ValueOf(item).Elem().Interface() // deref pointer
 
 			f.Set(reflect.ValueOf(val))
 		} else {
-			item, err := configstore.Filter().
-				Store(store).
-				Slice(sliceKey).
-				Unmarshal(func() interface{} { return &map[string]any{} }).
-				Squash().
-				MustGetFirstItem().
-				Unmarshaled()
+			item, err := get[map[string]any](store, sliceKey)
 			if err != nil {
 				return fmt.Errorf("getting referenced item from configstore: %w", err)
 			}
-
-			typedItem := item.(*map[string]any)
 
 			qry, err := gojq.Parse(query)
 			if err != nil {
 				return fmt.Errorf("parsing query %q: %w", query, err)
 			}
 
-			iter := qry.Run(*typedItem) // or query.RunWithContext
+			iter := qry.Run(item) // or query.RunWithContext
 			for {
 				v, hasNext := iter.Next()
 				if !hasNext {
@@ -144,4 +128,19 @@ func lookup(store *configstore.Store, parent any) error {
 		}
 	}
 	return nil
+}
+
+func get[T any](store *configstore.Store, key string) (T, error) {
+	item, err := configstore.Filter().
+		Store(store).
+		Slice(key).
+		Unmarshal(func() interface{} { return new(T) }).
+		Squash().
+		MustGetFirstItem().
+		Unmarshaled()
+	if err != nil {
+		return *new(T), fmt.Errorf("getting item from configstore: %w", err)
+	}
+
+	return *item.(*T), nil
 }
