@@ -98,34 +98,44 @@ func lookup(store *configstore.Store, parent any) error {
 
 			f.Set(reflect.ValueOf(val))
 		} else {
-			item, err := get[map[string]any](store, sliceKey)
+			err := handleWithQuery(store, sliceKey, query, f)
 			if err != nil {
-				return fmt.Errorf("getting referenced item from configstore: %w", err)
-			}
-
-			qry, err := gojq.Parse(query)
-			if err != nil {
-				return fmt.Errorf("parsing query %q: %w", query, err)
-			}
-
-			iter := qry.Run(item) // or query.RunWithContext
-			for {
-				v, hasNext := iter.Next()
-				if !hasNext {
-					break
-				}
-
-				if err, ok := v.(error); ok {
-					var haltErr *gojq.HaltError
-					if errors.As(err, &haltErr) && haltErr.Value() == nil {
-						break
-					}
-					return fmt.Errorf("iterating over query results: %w", err)
-				}
-
-				f.Set(reflect.ValueOf(v))
+				return fmt.Errorf("handling with query: %w", err)
 			}
 		}
+	}
+	return nil
+}
+
+func handleWithQuery(store *configstore.Store, sliceKey string, query string, f reflect.Value) error {
+	item, err := get[map[string]any](store, sliceKey)
+	if err != nil {
+		return fmt.Errorf("getting referenced item from configstore: %w", err)
+	}
+
+	qry, err := gojq.Parse(query)
+	if err != nil {
+		return fmt.Errorf("parsing query %q: %w", query, err)
+	}
+
+	iter := qry.Run(item) // or query.RunWithContext
+	for {
+		v, hasNext := iter.Next()
+		if !hasNext {
+			break
+		}
+
+		if err, ok := v.(error); ok {
+			var haltErr *gojq.HaltError
+			if errors.As(err, &haltErr) && haltErr.Value() == nil {
+				break
+			}
+			return fmt.Errorf("iterating over query results: %w", err)
+		}
+
+		f.Set(reflect.ValueOf(v))
+
+		break
 	}
 	return nil
 }
