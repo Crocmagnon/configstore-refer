@@ -1,6 +1,7 @@
 package refer
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,13 +11,25 @@ import (
 	"github.com/ovh/configstore"
 )
 
-func GetFromStore[T any](store *configstore.Store, key string) (T, error) {
-	item, err := get[T](store, key)
+// LoadFromStore gets an item from the given configstore.Store
+// and follows `configstore` tags on fields of the given T type.
+//
+// Tags must be in the following format: `configstore:"store-key[,expression]"`.
+//
+// store-key refers to another entry in the given store.
+// LoadFromStore will attempt to load an item by that name and set it as the value of the struct field.
+// If no item is found, an error is returned.
+//
+// expression is optional and assumes the entry referred to by store-key can be unmarshalled as map[string]any.
+// It will be parsed by github.com/itchyny/gojq to retrieve a specific entry from the map
+// and set it as the value of the struct field instead of the whole configstore item.
+func LoadFromStore[T any](ctx context.Context, store *configstore.Store, key string) (T, error) {
+	item, err := GetFromStoreAs[T](store, key)
 	if err != nil {
 		return *new(T), fmt.Errorf("getting item from configstore: %w", err)
 	}
 
-	err = lookup(store, &item)
+	err = lookup(ctx, store, &item)
 	if err != nil {
 		return item, fmt.Errorf("looking up referenced items: %w", err)
 	}
@@ -24,93 +37,113 @@ func GetFromStore[T any](store *configstore.Store, key string) (T, error) {
 	return item, nil
 }
 
-func lookup(store *configstore.Store, parent any) error {
-	typeOfParent := reflect.TypeOf(parent)
-	for typeOfParent.Kind() == reflect.Pointer {
-		typeOfParent = typeOfParent.Elem()
+// GetFromStoreAs returns a single typed item from the given store.
+func GetFromStoreAs[T any](store *configstore.Store, key string) (T, error) {
+	item, err := GetFromStore(store, key, new(T))
+	if err != nil {
+		return *new(T), nil
 	}
-	if typeOfParent.Kind() != reflect.Struct {
+
+	return *item.(*T), nil
+}
+
+// GetFromStore returns a single item from the given store, unmarshalled using the given type.
+// unmarshalAs must be a pointer.
+func GetFromStore(store *configstore.Store, key string, unmarshalAs any) (interface{}, error) {
+	item, err := configstore.Filter().
+		Store(store).
+		Slice(key).
+		Unmarshal(func() interface{} { return unmarshalAs }).
+		Squash().
+		MustGetFirstItem().
+		Unmarshaled()
+	if err != nil {
+		return nil, fmt.Errorf("getting item from configstore: %w", err)
+	}
+
+	return item, nil
+}
+
+func lookup(ctx context.Context, store *configstore.Store, parent any) error {
+	valueOfParent := derefValue(reflect.ValueOf(parent))
+	if valueOfParent.Kind() != reflect.Struct {
 		return nil
 	}
 
-	valueOfParent := reflect.ValueOf(parent)
-	for valueOfParent.Kind() == reflect.Pointer {
-		valueOfParent = valueOfParent.Elem()
-	}
+	typeOfParent := valueOfParent.Type()
 
 	for i := range typeOfParent.NumField() {
-		typeField := typeOfParent.Field(i)
-
-		if !typeField.IsExported() {
-			continue
-		}
-
-		typeOfField := typeField.Type
-		for typeOfField.Kind() == reflect.Pointer {
-			typeOfField = typeOfField.Elem()
-		}
-
-		tag := typeField.Tag.Get("configstore")
-
-		if typeOfField.Kind() == reflect.Struct && tag == "" {
-			if err := lookup(store, valueOfParent.Field(i).Addr().Interface()); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if tag == "" {
-			continue
-		}
-
-		tagParts := strings.Split(tag, ",")
-		if len(tagParts) == 0 {
-			continue
-		}
-		if len(tagParts) > 2 {
-			return fmt.Errorf("configstore tag contains more than two parts: %s", tag)
-		}
-
-		sliceKey := tagParts[0]
-		query := ""
-		if len(tagParts) == 2 {
-			query = tagParts[1]
-		}
-
-		f := valueOfParent.Field(i)
-		if !f.CanSet() {
-			continue
-		}
-
-		if query == "" {
-			item, err := configstore.Filter().
-				Store(store).
-				Slice(sliceKey).
-				Unmarshal(func() interface{} { return reflect.New(typeOfField).Interface() }).
-				Squash().
-				MustGetFirstItem().
-				Unmarshaled()
-			if err != nil {
-				return fmt.Errorf("getting referenced item from configstore: %w", err)
-			}
-
-			val := reflect.ValueOf(item).Elem().Interface() // deref pointer
-
-			f.Set(reflect.ValueOf(val))
-		} else {
-			err := handleWithQuery(store, sliceKey, query, f)
-			if err != nil {
-				return fmt.Errorf("handling with query: %w", err)
-			}
+		if err := handleField(ctx, store, typeOfParent, valueOfParent, i); err != nil {
+			return fmt.Errorf("handling field %d: %w", i, err)
 		}
 	}
 	return nil
 }
 
-func handleWithQuery(store *configstore.Store, sliceKey string, query string, f reflect.Value) error {
-	item, err := get[map[string]any](store, sliceKey)
+func handleField(ctx context.Context, store *configstore.Store, typeOfParent reflect.Type, valueOfParent reflect.Value, fieldIndex int) error {
+	typeField := typeOfParent.Field(fieldIndex)
+	if !typeField.IsExported() {
+		return nil
+	}
+
+	valueField := valueOfParent.Field(fieldIndex)
+	if !valueField.CanSet() {
+		return nil
+	}
+
+	typeOfField := derefType(typeField.Type)
+
+	tag := typeField.Tag.Get("configstore")
+	if tag == "" {
+		if typeOfField.Kind() != reflect.Struct {
+			return nil
+		}
+
+		if err := lookup(nil, store, valueOfParent.Field(fieldIndex).Addr().Interface()); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	tagParts := strings.Split(tag, ",")
+	switch len(tagParts) {
+	case 1, 2:
+		break // break out of the switch
+	default:
+		return fmt.Errorf("configstore tag doesn't contain exactly one or two parts: %s", tag)
+	}
+
+	sliceKey := tagParts[0]
+
+	query := ""
+	if len(tagParts) == 2 {
+		query = tagParts[1]
+	}
+
+	if query == "" {
+		// Can't use GetFromStoreAs[T] here because generics imply that the compiler can guess the type at compile time,
+		// and we're using reflection which implies getting the type at runtime.
+		item, err := GetFromStore(store, sliceKey, reflect.New(typeOfField).Interface())
+		if err != nil {
+			return err
+		}
+
+		valueField.Set(derefValue(reflect.ValueOf(item)))
+	} else {
+		err := handleWithQuery(ctx, store, sliceKey, query, valueField)
+		if err != nil {
+			return fmt.Errorf("handling with query: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func handleWithQuery(ctx context.Context, store *configstore.Store, sliceKey string, query string, valueField reflect.Value) error {
+	item, err := GetFromStoreAs[map[string]any](store, sliceKey)
 	if err != nil {
-		return fmt.Errorf("getting referenced item from configstore: %w", err)
+		return err
 	}
 
 	qry, err := gojq.Parse(query)
@@ -118,39 +151,39 @@ func handleWithQuery(store *configstore.Store, sliceKey string, query string, f 
 		return fmt.Errorf("parsing query %q: %w", query, err)
 	}
 
-	iter := qry.Run(item) // or query.RunWithContext
-	for {
-		v, hasNext := iter.Next()
-		if !hasNext {
-			break
-		}
+	iter := qry.RunWithContext(ctx, item)
 
-		if err, ok := v.(error); ok {
-			var haltErr *gojq.HaltError
-			if errors.As(err, &haltErr) && haltErr.Value() == nil {
-				break
-			}
-			return fmt.Errorf("iterating over query results: %w", err)
-		}
-
-		f.Set(reflect.ValueOf(v))
-
-		break
+	v, hasNext := iter.Next()
+	if !hasNext {
+		return nil
 	}
+
+	if err, ok := v.(error); ok {
+		var haltErr *gojq.HaltError
+		if errors.As(err, &haltErr) && haltErr.Value() == nil {
+			return nil
+		}
+
+		return fmt.Errorf("iterating over query results: %w", err)
+	}
+
+	valueField.Set(reflect.ValueOf(v))
+
 	return nil
 }
 
-func get[T any](store *configstore.Store, key string) (T, error) {
-	item, err := configstore.Filter().
-		Store(store).
-		Slice(key).
-		Unmarshal(func() interface{} { return new(T) }).
-		Squash().
-		MustGetFirstItem().
-		Unmarshaled()
-	if err != nil {
-		return *new(T), fmt.Errorf("getting item from configstore: %w", err)
+func derefType(t reflect.Type) reflect.Type {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
 	}
 
-	return *item.(*T), nil
+	return t
+}
+
+func derefValue(t reflect.Value) reflect.Value {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	return t
 }
