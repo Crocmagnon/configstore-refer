@@ -1,6 +1,6 @@
 module go.augendre.info/configstore-refer
 
-go 1.25.1
+go 1.24.0
 
 require (
 	github.com/itchyny/gojq v0.12.17

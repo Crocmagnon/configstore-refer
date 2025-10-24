@@ -27,6 +27,6 @@ jobs:
       - name: Test
         run: make test
       - name: golangci-lint
-        uses: https://github.com/hashicorp/golangci/golangci-lint-action@v8
+        uses: https://github.com/golangci/golangci-lint-action@v8
         with:
           version: v2.5
