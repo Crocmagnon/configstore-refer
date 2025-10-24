@@ -1,0 +1,30 @@
+name: "Test"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: "Test"
+    runs-on: codeberg-tiny-lazy
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      matrix:
+        go: [stable, oldstable]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '${{ matrix.go }}'
+      - name: Test
+        run: make test
+      - name: Lint
+        run: make lint
