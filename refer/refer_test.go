@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ovh/configstore"
-	refer "go.augendre.info/configstore-refer"
+	"go.augendre.info/configstore-refer/refer"
 	"gotest.tools/v3/assert"
 )
 
