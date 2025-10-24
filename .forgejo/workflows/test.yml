@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: "Test"
+    name: "Test ${{ matrix.go }}"
     runs-on: codeberg-tiny-lazy
     defaults:
       run:
@@ -26,5 +26,7 @@ jobs:
           go-version: '${{ matrix.go }}'
       - name: Test
         run: make test
-      - name: Lint
-        run: make lint
+      - name: golangci-lint
+        uses: https://github.com/hashicorp/golangci/golangci-lint-action@v8
+        with:
+          version: v2.5
