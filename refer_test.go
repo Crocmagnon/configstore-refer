@@ -3,8 +3,8 @@ package refer_test
 import (
 	"testing"
 
-	refer "codeberg.org/Crocmagnon/configstore-refer"
 	"github.com/ovh/configstore"
+	refer "go.augendre.info/configstore-refer"
 	"gotest.tools/v3/assert"
 )
 

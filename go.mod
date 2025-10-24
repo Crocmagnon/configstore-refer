@@ -1,4 +1,4 @@
-module codeberg.org/Crocmagnon/configstore-refer
+module go.augendre.info/configstore-refer
 
 go 1.25.1
 
