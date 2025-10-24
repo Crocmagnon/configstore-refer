@@ -1,4 +1,5 @@
 // Package refer helps you build a single configuration struct while keeping your configstore entries separate.
+// It uses struct tags to refer to other configstore items, with support typed values and nested json (with the help of https://github.com/itchyny/gojq).
 package refer
 
 import (
