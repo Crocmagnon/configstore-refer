@@ -17,11 +17,11 @@ import (
 //
 // Tags must be in the following format: `configstore:"store-key[,expression]"`.
 //
-// store-key refers to another entry in the given store.
+// `store-key` refers to another entry in the given store.
 // LoadFromStore will attempt to load an item by that name and set it as the value of the struct field.
 // If no item is found, an error is returned.
 //
-// expression is optional and assumes the entry referred to by store-key can be unmarshalled as map[string]any.
+// `expression` is optional and assumes the entry referred to by store-key can be unmarshalled as map[string]any.
 // It will be parsed by github.com/itchyny/gojq to retrieve a specific entry from the map
 // and set it as the value of the struct field instead of the whole configstore item.
 func LoadFromStore[T any](ctx context.Context, store *configstore.Store, key string) (T, error) {
