@@ -1,5 +1,6 @@
 // Package refer helps you build a single configuration struct while keeping your configstore entries separate.
-// It uses struct tags to refer to other configstore items, with support typed values and nested json (with the help of https://github.com/itchyny/gojq).
+// It uses struct tags to refer to other configstore items, with support typed values and nested json
+// (with the help of https://github.com/itchyny/gojq).
 package refer
 
 import (
@@ -43,10 +44,10 @@ func LoadFromStore[T any](ctx context.Context, store *configstore.Store, key str
 func GetFromStoreAs[T any](store *configstore.Store, key string) (T, error) {
 	item, err := GetFromStore(store, key, new(T))
 	if err != nil {
-		return *new(T), nil
+		return *new(T), err
 	}
 
-	return *item.(*T), nil
+	return *item.(*T), nil //nolint:forcetypeassert // safe cast as per configstore package
 }
 
 // GetFromStore returns a single item from the given store, unmarshalled using the given type.
@@ -75,14 +76,25 @@ func lookup(ctx context.Context, store *configstore.Store, parent any) error {
 	typeOfParent := valueOfParent.Type()
 
 	for i := range typeOfParent.NumField() {
-		if err := handleField(ctx, store, typeOfParent, valueOfParent, i); err != nil {
+		err := handleField(ctx, store, typeOfParent, valueOfParent, i)
+		if err != nil {
 			return fmt.Errorf("handling field %d: %w", i, err)
 		}
 	}
+
 	return nil
 }
 
-func handleField(ctx context.Context, store *configstore.Store, typeOfParent reflect.Type, valueOfParent reflect.Value, fieldIndex int) error {
+// ErrInvalidTag is returned when the configstore tag is malformed.
+var ErrInvalidTag = errors.New("invalid tag")
+
+func handleField(
+	ctx context.Context,
+	store *configstore.Store,
+	typeOfParent reflect.Type,
+	valueOfParent reflect.Value,
+	fieldIndex int,
+) error {
 	typeField := typeOfParent.Field(fieldIndex)
 	if !typeField.IsExported() {
 		return nil
@@ -101,25 +113,32 @@ func handleField(ctx context.Context, store *configstore.Store, typeOfParent ref
 			return nil
 		}
 
-		if err := lookup(nil, store, valueOfParent.Field(fieldIndex).Addr().Interface()); err != nil {
+		err := lookup(ctx, store, valueOfParent.Field(fieldIndex).Addr().Interface())
+		if err != nil {
 			return err
 		}
 
 		return nil
 	}
 
+	const maxTagParts = 2
+
 	tagParts := strings.Split(tag, ",")
 	switch len(tagParts) {
-	case 1, 2:
+	case 1, maxTagParts:
 		break // break out of the switch
 	default:
-		return fmt.Errorf("configstore tag doesn't contain exactly one or two parts: %s", tag)
+		return fmt.Errorf(
+			"%w: configstore tag doesn't contain exactly one or two parts: %s",
+			ErrInvalidTag,
+			tag,
+		)
 	}
 
 	sliceKey := tagParts[0]
 
 	query := ""
-	if len(tagParts) == 2 {
+	if len(tagParts) == maxTagParts {
 		query = tagParts[1]
 	}
 
@@ -142,7 +161,13 @@ func handleField(ctx context.Context, store *configstore.Store, typeOfParent ref
 	return nil
 }
 
-func handleWithQuery(ctx context.Context, store *configstore.Store, sliceKey string, query string, valueField reflect.Value) error {
+func handleWithQuery(
+	ctx context.Context,
+	store *configstore.Store,
+	sliceKey string,
+	query string,
+	valueField reflect.Value,
+) error {
 	item, err := GetFromStoreAs[map[string]any](store, sliceKey)
 	if err != nil {
 		return err
@@ -155,12 +180,12 @@ func handleWithQuery(ctx context.Context, store *configstore.Store, sliceKey str
 
 	iter := qry.RunWithContext(ctx, item)
 
-	v, hasNext := iter.Next()
+	value, hasNext := iter.Next()
 	if !hasNext {
 		return nil
 	}
 
-	if err, ok := v.(error); ok {
+	if err, ok := value.(error); ok {
 		var haltErr *gojq.HaltError
 		if errors.As(err, &haltErr) && haltErr.Value() == nil {
 			return nil
@@ -169,7 +194,7 @@ func handleWithQuery(ctx context.Context, store *configstore.Store, sliceKey str
 		return fmt.Errorf("iterating over query results: %w", err)
 	}
 
-	valueField.Set(reflect.ValueOf(v))
+	valueField.Set(reflect.ValueOf(value))
 
 	return nil
 }

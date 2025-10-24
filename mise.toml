@@ -3,3 +3,4 @@ CONFIGURATION_FROM="file:config.yml"
 
 [tools]
 go = "1.25.1"
+golangci-lint = "v2.5.0"

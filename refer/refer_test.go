@@ -8,136 +8,150 @@ import (
 	"gotest.tools/v3/assert"
 )
 
-func TestSimple(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `{
+func TestLoadFromStore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("simple", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{
 	"url": "https://api.example.com"
 }`, 1),
-		configstore.NewItem("api-token", `some-token`, 1),
-		configstore.NewItem("user", `api-user`, 1),
-	)
+			configstore.NewItem("api-token", `some-token`, 1),
+			configstore.NewItem("user", `api-user`, 1),
+		)
 
-	type Config struct {
-		URL   string `json:"url"`
-		User  string `json:"-" configstore:"user"`
-		Token string `json:"-" configstore:"api-token"`
-	}
+		type Config struct {
+			URL   string `json:"url"`
+			User  string `json:"-"   configstore:"user"`
+			Token string `json:"-"   configstore:"api-token"`
+		}
 
-	config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
-	assert.NilError(t, err)
+		config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.NilError(t, err)
 
-	assert.Equal(t, config.URL, "https://api.example.com")
-	assert.Equal(t, config.User, "api-user")
-	assert.Equal(t, config.Token, "some-token")
-}
+		assert.Equal(t, config.URL, "https://api.example.com")
+		assert.Equal(t, config.User, "api-user")
+		assert.Equal(t, config.Token, "some-token")
+	})
 
-func TestTypes(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `{}`, 1),
-		configstore.NewItem("intPos", `5`, 1),
-		configstore.NewItem("intNeg", `-5`, 1),
-		configstore.NewItem("boolTrue", `true`, 1),
-		configstore.NewItem("stringSlice", `["foo", "bar"]`, 1),
-	)
+	t.Run("types", func(t *testing.T) {
+		t.Parallel()
 
-	type Config struct {
-		IntPos      int      `json:"-" configstore:"intPos"`
-		IntNeg      int      `json:"-" configstore:"intNeg"`
-		Uint        uint     `json:"-" configstore:"intPos"`
-		BoolTrue    bool     `json:"-" configstore:"boolTrue"`
-		StringSlice []string `json:"-" configstore:"stringSlice"`
-	}
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{}`, 1),
+			configstore.NewItem("intPos", `5`, 1),
+			configstore.NewItem("intNeg", `-5`, 1),
+			configstore.NewItem("boolTrue", `true`, 1),
+			configstore.NewItem("stringSlice", `["foo", "bar"]`, 1),
+		)
 
-	config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
-	assert.NilError(t, err)
+		type Config struct {
+			IntPos      int      `configstore:"intPos"      json:"-"`
+			IntNeg      int      `configstore:"intNeg"      json:"-"`
+			Uint        uint     `configstore:"intPos"      json:"-"`
+			BoolTrue    bool     `configstore:"boolTrue"    json:"-"`
+			StringSlice []string `configstore:"stringSlice" json:"-"`
+		}
 
-	assert.Equal(t, config.IntPos, 5)
-	assert.Equal(t, config.IntNeg, -5)
-	assert.Equal(t, config.Uint, uint(5))
-	assert.Equal(t, config.BoolTrue, true)
-	assert.DeepEqual(t, config.StringSlice, []string{"foo", "bar"})
-}
+		config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.NilError(t, err)
 
-func TestNotStruct(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `some value`, 1),
-	)
+		assert.Equal(t, config.IntPos, 5)
+		assert.Equal(t, config.IntNeg, -5)
+		assert.Equal(t, config.Uint, uint(5))
+		assert.Equal(t, config.BoolTrue, true)
+		assert.DeepEqual(t, config.StringSlice, []string{"foo", "bar"})
+	})
+	t.Run("not struct", func(t *testing.T) {
+		t.Parallel()
 
-	config, err := refer.LoadFromStore[string](t.Context(), store, "config")
-	assert.NilError(t, err)
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `some value`, 1),
+		)
 
-	assert.Equal(t, config, "some value")
-}
+		config, err := refer.LoadFromStore[string](t.Context(), store, "config")
+		assert.NilError(t, err)
 
-func TestNested(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `{
+		assert.Equal(t, config, "some value")
+	})
+
+	t.Run("nested", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{
 	"container": {
 		"api": {
 			"url": "https://api.example.com"
 		}
 	}
 }`, 1),
-		configstore.NewItem("api-token", `some-token`, 1),
-	)
+			configstore.NewItem("api-token", `some-token`, 1),
+		)
 
-	type API struct {
-		URL   string `json:"url"`
-		Token string `json:"-" configstore:"api-token"`
-	}
+		type API struct {
+			URL   string `json:"url"`
+			Token string `json:"-"   configstore:"api-token"`
+		}
 
-	type Container struct {
-		API API `json:"api"`
-	}
+		type Container struct {
+			API API `json:"api"`
+		}
 
-	type Config struct {
-		Container Container `json:"container"`
-	}
+		type Config struct {
+			Container Container `json:"container"`
+		}
 
-	config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
-	assert.NilError(t, err)
+		config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.NilError(t, err)
 
-	assert.Equal(t, config.Container.API.URL, "https://api.example.com")
-	assert.Equal(t, config.Container.API.Token, "some-token")
-}
+		assert.Equal(t, config.Container.API.URL, "https://api.example.com")
+		assert.Equal(t, config.Container.API.Token, "some-token")
+	})
 
-func TestStructRefer(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `{
+	t.Run("struct refer", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{
 }`, 1),
-		configstore.NewItem("api-config", `{
+			configstore.NewItem("api-config", `{
 	"url": "https://api.example.com",
 	"token": "some-token"
 }`, 1),
-	)
+		)
 
-	type API struct {
-		URL   string `json:"url"`
-		Token string `json:"token"`
-	}
+		type API struct {
+			URL   string `json:"url"`
+			Token string `json:"token"`
+		}
 
-	type Config struct {
-		API API `json:"-" configstore:"api-config"`
-	}
+		type Config struct {
+			API API `configstore:"api-config" json:"-"`
+		}
 
-	config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
-	assert.NilError(t, err)
+		config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.NilError(t, err)
 
-	assert.Equal(t, config.API.URL, "https://api.example.com")
-	assert.Equal(t, config.API.Token, "some-token")
-}
+		assert.Equal(t, config.API.URL, "https://api.example.com")
+		assert.Equal(t, config.API.Token, "some-token")
+	})
 
-func TestReferKeys(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `{
+	t.Run("refer keys", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{
 }`, 1),
-		configstore.NewItem("api-config", `{
+			configstore.NewItem("api-config", `{
 	"api": {
 		"url": "https://api.example.com",
 		"concurrency": 2,
@@ -147,40 +161,43 @@ func TestReferKeys(t *testing.T) {
 		}
 	}
 }`, 1),
-	)
+		)
 
-	type Config struct {
-		URL         string `json:"-" configstore:"api-config,.api.url"`
-		Token       string `json:"-" configstore:"api-config,.api.creds.token"`
-		User        string `json:"-" configstore:"api-config,.api.creds.user"`
-		Concurrency int    `json:"-" configstore:"api-config,.api.concurrency | tostring | tonumber"`
-	}
+		type Config struct {
+			URL         string `configstore:"api-config,.api.url"                               json:"-"`
+			Token       string `configstore:"api-config,.api.creds.token"                       json:"-"`
+			User        string `configstore:"api-config,.api.creds.user"                        json:"-"`
+			Concurrency int    `configstore:"api-config,.api.concurrency | tostring | tonumber" json:"-"`
+		}
 
-	config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
-	assert.NilError(t, err)
+		config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.NilError(t, err)
 
-	assert.Equal(t, config.URL, "https://api.example.com")
-	assert.Equal(t, config.Token, "some-token")
-	assert.Equal(t, config.User, "user")
-	assert.Equal(t, config.Concurrency, 2)
-}
+		assert.Equal(t, config.URL, "https://api.example.com")
+		assert.Equal(t, config.Token, "some-token")
+		assert.Equal(t, config.User, "user")
+		assert.Equal(t, config.Concurrency, 2)
+	})
 
-func TestMissingStoreItem(t *testing.T) {
-	store := configstore.NewStore()
-	store.InMemory(t.Name()).Add(
-		configstore.NewItem("config", `{
+	t.Run("missing store item", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{
 	"url": "https://api.example.com"
 }`, 1),
-		configstore.NewItem("api-token", `some-token`, 1),
-	)
+			configstore.NewItem("api-token", `some-token`, 1),
+		)
 
-	type Config struct {
-		URL   string `json:"url"`
-		User  string `json:"-" configstore:"user"` // no "user" item in the store
-		Token string `json:"-" configstore:"api-token"`
-	}
+		type Config struct {
+			URL   string `json:"url"`
+			User  string `json:"-"   configstore:"user"` // no "user" item in the store
+			Token string `json:"-"   configstore:"api-token"`
+		}
 
-	_, err := refer.LoadFromStore[Config](t.Context(), store, "config")
-	assert.ErrorContains(t, err, "no item found")
-	assert.ErrorContains(t, err, "user")
+		_, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.ErrorContains(t, err, "no item found")
+		assert.ErrorContains(t, err, "user")
+	})
 }

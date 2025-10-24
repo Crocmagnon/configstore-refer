@@ -29,8 +29,8 @@ func ExampleLoadFromStore() {
 
 	type Config struct {
 		URL         string `json:"url"`
-		Token       string `json:"-" configstore:"api-token"`
-		RetryNumber int    `json:"-" configstore:"api-policy,.policy.retryNumber | tostring | tonumber"`
+		Token       string `json:"-"   configstore:"api-token"`
+		RetryNumber int    `json:"-"   configstore:"api-policy,.policy.retryNumber | tostring | tonumber"`
 	}
 
 	conf, err := refer.LoadFromStore[Config](context.TODO(), store, "config")

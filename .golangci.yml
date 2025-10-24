@@ -1,0 +1,37 @@
+version: "2"
+issues:
+  fix: true
+linters:
+  default: all
+  disable:
+    - depguard
+    - exhaustruct
+    - wsl # replaced with wsl_v5
+  settings:
+    cyclop:
+      max-complexity: 30
+    funlen:
+      lines: -1 # use statements count instead of lines
+    ireturn:
+      allow:
+        # defaults
+        - anon
+        - error
+        - empty
+        - stdlib
+        # custom
+        - generic
+  exclusions:
+    rules:
+      - path: doc\.go
+        linters: [revive, godoclint]
+formatters:
+  enable:
+    - goimports
+    - gofmt
+    - gofumpt
+    - golines
+  settings:
+    goimports:
+      local-prefixes:
+        - go.augendre.info/arangolint
