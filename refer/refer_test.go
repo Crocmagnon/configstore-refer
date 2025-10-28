@@ -200,4 +200,25 @@ func TestLoadFromStore(t *testing.T) {
 		assert.ErrorContains(t, err, "no item found")
 		assert.ErrorContains(t, err, "user")
 	})
+
+	t.Run("missing key in referred item", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{"url": "https://api.example.com"}`, 1),
+			configstore.NewItem("api-secrets", `{}`, 1),
+		)
+
+		type Config struct {
+			URL   string `json:"url"`
+			Token string `json:"-"   configstore:"api-secrets,.token"`
+		}
+
+		config, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.NilError(t, err)
+
+		assert.Equal(t, config.URL, "https://api.example.com")
+		assert.Equal(t, config.Token, "")
+	})
 }

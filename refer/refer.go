@@ -194,7 +194,10 @@ func handleWithQuery(
 		return fmt.Errorf("iterating over query results: %w", err)
 	}
 
-	valueField.Set(reflect.ValueOf(value))
+	valueOf := reflect.ValueOf(value)
+	if valueOf.IsValid() {
+		valueField.Set(valueOf)
+	}
 
 	return nil
 }
