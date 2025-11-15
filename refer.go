@@ -93,8 +93,15 @@ func lookup(ctx context.Context, store *configstore.Store, parent any) error {
 	return nil
 }
 
-// ErrInvalidTag is returned when the configstore tag is malformed.
-var ErrInvalidTag = errors.New("invalid tag")
+var (
+	// ErrInvalidTag is returned when the configstore tag is malformed.
+	ErrInvalidTag = errors.New("invalid tag")
+
+	// ErrUnassignable is returned when the referred type is not assignable to the field type.
+	// This can happen when the referred type is a json object and the field type is a struct.
+	// It can only happen when using `expression` in the tag.
+	ErrUnassignable = errors.New("unassignable type")
+)
 
 func handleField(
 	ctx context.Context,
@@ -203,7 +210,12 @@ func handleWithQuery(
 	}
 
 	valueOf := reflect.ValueOf(value)
+
 	if valueOf.IsValid() {
+		if !valueOf.Type().AssignableTo(valueField.Type()) {
+			return fmt.Errorf("%w: %s is not assignable to %s", ErrUnassignable, valueOf.Type(), valueField.Type())
+		}
+
 		valueField.Set(valueOf)
 	}
 

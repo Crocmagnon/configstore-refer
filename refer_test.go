@@ -179,6 +179,42 @@ func TestLoadFromStore(t *testing.T) {
 		assert.Equal(t, config.Concurrency, 2)
 	})
 
+	t.Run("expression is a struct", func(t *testing.T) {
+		t.Parallel()
+
+		store := configstore.NewStore()
+		store.InMemory(t.Name()).Add(
+			configstore.NewItem("config", `{
+}`, 1),
+			configstore.NewItem("api-config", `{
+	"api": {
+		"url": "https://api.example.com",
+		"concurrency": 2,
+		"creds": {
+			"token": "some-token",
+			"user": "user"
+		}
+	}
+}`, 1),
+		)
+
+		type API struct {
+			URL         string `json:"url"`
+			Concurrency int    `json:"token"`
+			Creds       struct {
+				User  string `json:"user"`
+				Token string `json:"token"`
+			} `json:"creds"`
+		}
+
+		type Config struct {
+			API API `configstore:"api-config,.api" json:"-"`
+		}
+
+		_, err := refer.LoadFromStore[Config](t.Context(), store, "config")
+		assert.ErrorIs(t, err, refer.ErrUnassignable)
+	})
+
 	t.Run("missing store item", func(t *testing.T) {
 		t.Parallel()
 
