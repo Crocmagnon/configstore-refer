@@ -1,6 +1,6 @@
-// Package refer helps you build a single configuration struct while keeping your configstore entries separate.
+// Package refer helps you build a single configuration struct while keeping your [github.com/ovh/configstore] entries separate.
 // It uses struct tags to refer to other configstore items, with support typed values and nested json
-// (with the help of https://github.com/itchyny/gojq).
+// (with the help of [github.com/itchyny/gojq]).
 package refer
 
 import (
@@ -24,8 +24,16 @@ import (
 // If no item is found, an error is returned.
 //
 // `expression` is optional and assumes the entry referred to by store-key can be unmarshalled as map[string]any.
-// It will be parsed by github.com/itchyny/gojq to retrieve a specific entry from the map
+// It will be parsed by [github.com/itchyny/gojq.Parse] to retrieve a specific entry from the map
 // and set it as the value of the struct field instead of the whole configstore item.
+//
+// Example:
+//
+//	type Config struct {
+//		URL         string `json:"url"`
+//		Token       string `json:"-"   configstore:"api-token"`
+//		RetryNumber int    `json:"-"   configstore:"api-policy,.retryNumber | tostring | tonumber"`
+//	}
 func LoadFromStore[T any](ctx context.Context, store *configstore.Store, key string) (T, error) {
 	item, err := GetFromStoreAs[T](store, key)
 	if err != nil {
