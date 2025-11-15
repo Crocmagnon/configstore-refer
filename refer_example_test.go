@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/ovh/configstore"
-	"go.augendre.info/configstore-refer"
+	refer "go.augendre.info/configstore-refer"
 )
 
 func ExampleLoadFromStore() {

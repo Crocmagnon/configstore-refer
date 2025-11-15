@@ -18,7 +18,7 @@ import (
     "context"
     "fmt"
     "log"
-    
+
     "github.com/ovh/configstore"
     "go.augendre.info/configstore-refer"
 )

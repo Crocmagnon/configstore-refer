@@ -1,4 +1,5 @@
-// Package refer helps you build a single configuration struct while keeping your [github.com/ovh/configstore] entries separate.
+// Package refer helps you build a single configuration struct
+// while keeping your [github.com/ovh/configstore] entries separate.
 // It uses struct tags to refer to other configstore items, with support typed values and nested json
 // (with the help of [github.com/itchyny/gojq]).
 package refer
@@ -213,7 +214,12 @@ func handleWithQuery(
 
 	if valueOf.IsValid() {
 		if !valueOf.Type().AssignableTo(valueField.Type()) {
-			return fmt.Errorf("%w: %s is not assignable to %s", ErrUnassignable, valueOf.Type(), valueField.Type())
+			return fmt.Errorf(
+				"%w: %s is not assignable to %s",
+				ErrUnassignable,
+				valueOf.Type(),
+				valueField.Type(),
+			)
 		}
 
 		valueField.Set(valueOf)
