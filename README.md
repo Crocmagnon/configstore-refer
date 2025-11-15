@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/go.augendre.info/configstore-refer.svg)](https://pkg.go.dev/go.augendre.info/configstore-refer)
 
 `configstore-refer` helps you build a single configuration struct while keeping your `configstore` entries separate.
-It uses struct tags to refer to other configstore items, with support for typed values and nested json (with the help of https://github.com/itchyny/gojq).
+It uses struct tags to refer to other configstore items, with support for typed values and nested json with the help of https://github.com/itchyny/gojq.
 
 ```shell
 go get go.augendre.info/configstore-refer@latest
