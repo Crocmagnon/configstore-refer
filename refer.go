@@ -61,11 +61,11 @@ func GetFromStoreAs[T any](store *configstore.Store, key string) (T, error) {
 
 // GetFromStore returns a single item from the given store, unmarshalled using the given type.
 // unmarshalAs must be a pointer.
-func GetFromStore(store *configstore.Store, key string, unmarshalAs any) (interface{}, error) {
+func GetFromStore(store *configstore.Store, key string, unmarshalAs any) (any, error) {
 	item, err := configstore.Filter().
 		Store(store).
 		Slice(key).
-		Unmarshal(func() interface{} { return unmarshalAs }).
+		Unmarshal(func() any { return unmarshalAs }).
 		Squash().
 		MustGetFirstItem().
 		Unmarshaled()

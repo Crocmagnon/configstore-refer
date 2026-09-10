@@ -6,7 +6,9 @@ linters:
   disable:
     - depguard
     - exhaustruct
+    - exhaustruct_v5
     - wsl # replaced with wsl_v5
+    - gomodguard
   settings:
     cyclop:
       max-complexity: 30
