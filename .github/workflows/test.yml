@@ -29,4 +29,4 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.13.2  # keep in sync with mise.toml
+          version: v2.14.0  # keep in sync with mise.toml
